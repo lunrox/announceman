@@ -7,7 +7,7 @@ from os import getenv
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandStart, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -16,6 +16,8 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
+
+from announceman.route_preview import get_route_preview
 
 TOKEN = getenv("BOT_TOKEN")
 
@@ -200,6 +202,17 @@ async def process_post_scriptum(message: Message, state: FSMContext) -> None:
     )
 
     await state.clear()
+
+
+@form_router.message(Command("preview"))
+async def preview_handler(message: Message, command: CommandObject) -> None:
+    if not command.args:
+        await message.answer(
+            "Please send route URL with your preview command",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+    picture = await get_route_preview(command.args)
+    await message.reply_photo(picture)
 
 
 async def main():

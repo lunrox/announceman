@@ -1,1 +1,4 @@
 aiogram==3.12.0
+opengraph @ git+https://github.com/erikriver/opengraph@master
+pillow==10.4.0
+aiohttp==3.10.3
