@@ -20,7 +20,7 @@ from aiogram.types import (
 )
 from attr import dataclass
 
-from announceman.route_preview import get_route_preview, load_route
+from announceman.route_preview import get_route_preview, load_route, InMemoryInputFile
 
 TOKEN = getenv("BOT_TOKEN")
 ROUTE_LIST_PAGE_LEN = 10
@@ -66,9 +66,9 @@ async def command_start(message: Message, state: FSMContext) -> None:
         link_preview_options=LinkPreviewOptions(is_disabled=True),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [
-                InlineKeyboardButton(text="Today", callback_data=datetime.now().strftime("%B %d")),
                 InlineKeyboardButton(
-                    text="Tomorrow", callback_data=(datetime.now() + timedelta(days=1)).strftime("%B %d"))
+                    text="Tomorrow", callback_data=(datetime.now() + timedelta(days=1)).strftime("%B %d")),
+                InlineKeyboardButton(text="Today", callback_data=datetime.now().strftime("%B %d")),
             ],
             [InlineKeyboardButton(text="Restart", callback_data=RESTART_DATA)],
         ])
@@ -169,7 +169,6 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="Skip", callback_data="skip"),
                         InlineKeyboardButton(text="Easy", callback_data="easy/recovery"),
                         InlineKeyboardButton(text="Z2", callback_data="Z2"),
                         InlineKeyboardButton(text="Fast", callback_data="FAST"),
@@ -185,7 +184,8 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         data = await state.get_data()
         data['pace'] = callback_data
 
-        await callback_query.message.reply(
+        await callback_query.message.reply_photo(
+            InMemoryInputFile(data['route'].preview_image),
             f"Announcement ({data['date']})\n\n"
             f"{data['track']}\n"
             f"{data['time']} at {data['start_point']}\n"
@@ -206,13 +206,12 @@ async def process_track_data(track_command, message: Message, state: FSMContext)
     data['stack'].append((str(await state.get_state()), track_command))
     await state.update_data(track=route.preview_message, route=route, stack=data['stack'])
     await state.set_state(Form.start_point)
+
     await message.reply(
         "Choose a starting point",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
-                [
-                    InlineKeyboardButton(text=sp, callback_data=sp) for sp in start_points
-                ],
+                *[[InlineKeyboardButton(text=sp, callback_data=sp)] for sp in start_points],
                 [
                     InlineKeyboardButton(text="Go back", callback_data=GO_BACK_DATA),
                     InlineKeyboardButton(text="Restart", callback_data=RESTART_DATA),
