@@ -1,5 +1,8 @@
 import asyncio
+import json
 import logging
+import os.path
+import pickle
 import sys
 from datetime import datetime, timedelta
 from os import getenv
@@ -14,14 +17,32 @@ from aiogram.types import (
     KeyboardButton,
     Message,
     ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
+    ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton,
+    LinkPreviewOptions, CallbackQuery,
 )
+from attr import dataclass
 
-from announceman.route_preview import get_route_preview
+from announceman.route_preview import get_route_preview, load_route
 
 TOKEN = getenv("BOT_TOKEN")
+ROUTE_LIST_PAGE_LEN = 10
+ROUTES_PATH = "announceman_data/routes.json"
+ROUTES_CACHE = "announceman_data/.routes_loaded.pickle"
+START_POINTS_PATH = "announceman_data/starting_points.json"
 
+routes = []
+start_points = {}
 form_router = Router()
+
+
+@dataclass
+class StartPoint:
+    name: str
+    link: str
+
+    @property
+    def formatted(self) -> str:
+        return f"[{self.name}]({self.link})"
 
 
 class Form(StatesGroup):
@@ -99,20 +120,50 @@ async def process_date(message: Message, state: FSMContext) -> None:
     )
 
 
+@form_router.callback_query()
+async def callback_query_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+    if await state.get_state() != Form.track:
+        return
+
+    route_previews = [f"{route.preview_message} --> /route\_{i}" for i, route in
+                      enumerate(routes)]
+    offset = int(callback_query.data) * ROUTE_LIST_PAGE_LEN
+    await callback_query.message.edit_text(
+        "\n".join(route_previews[offset:offset + ROUTE_LIST_PAGE_LEN]),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=str(i), callback_data=str(i)) for i in
+            range(len(route_previews) // ROUTE_LIST_PAGE_LEN + 1)
+        ]])
+    )
+
+
 @form_router.message(Form.time)
 async def process_time(message: Message, state: FSMContext) -> None:
     await state.update_data(time=message.text)
     await state.set_state(Form.track)
 
+    route_previews = [f"{route.preview_message} --> /route\_{i}" for i, route in enumerate(routes)]
+
     await message.reply(
-        "Add a link to the route",
-        reply_markup=ReplyKeyboardRemove(),
+        "\n".join(route_previews[:ROUTE_LIST_PAGE_LEN]),
+        parse_mode=ParseMode.MARKDOWN,
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=str(i), callback_data=str(i)) for i in range(len(route_previews) // ROUTE_LIST_PAGE_LEN + 1)
+        ]])
     )
 
 
 @form_router.message(Form.track)
 async def process_track(message: Message, state: FSMContext) -> None:
-    await state.update_data(track=message.text)
+    if message.text.startswith('/route_'):
+        idx = int(message.text.split('_')[1])
+        route = routes[idx]
+    else:
+        loop = asyncio.get_event_loop()
+        route = await loop.run_in_executor(None, load_route,message.text)
+
+    await state.update_data(track=route.preview_message, route=route)
     await state.set_state(Form.title)
 
     # todo: get name of the track from strava or komoot and use it as a preset for a button
@@ -130,13 +181,19 @@ async def process_title(message: Message, state: FSMContext) -> None:
 
     await message.reply(
         "Choose a starting point",
-        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.MARKDOWN,
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
+        reply_markup=ReplyKeyboardMarkup(keyboard=[[
+            KeyboardButton(text=sp) for sp in start_points
+        ]])
     )
 
 
 @form_router.message(Form.start_point)
 async def process_start_point(message: Message, state: FSMContext) -> None:
-    await state.update_data(start_point=message.text)
+    sp = start_points.get(message.text)
+    sp = sp.formatted if sp else message.text
+    await state.update_data(start_point=sp)
     await state.set_state(Form.summary)
 
     await message.reply(
@@ -216,8 +273,27 @@ async def preview_handler(message: Message, command: CommandObject) -> None:
 
 
 async def main():
+    global routes
+    if os.path.exists(ROUTES_CACHE):
+        with open(ROUTES_CACHE, 'rb') as f:
+            routes = pickle.load(f)
+    else:
+        with open(ROUTES_PATH, 'r') as f_route:
+            route_links = json.load(f_route)
+        routes = [load_route(link, name) for name, link in route_links.items()]
+        with open(ROUTES_CACHE, 'wb') as f_cache:
+            pickle.dump(routes, f_cache)
+
+    global start_points
+    with open(START_POINTS_PATH, 'r') as f_start_points:
+        start_points = {name: StartPoint(name, link) for name, link in json.load(f_start_points).items()}
+
     # Initialize Bot instance with default bot properties which will be passed to all API calls
-    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(token=TOKEN, default=DefaultBotProperties(
+        parse_mode=ParseMode.MARKDOWN,
+        disable_notification=True,
+        link_preview_is_disabled=True,
+    ))
 
     dp = Dispatcher()
 
