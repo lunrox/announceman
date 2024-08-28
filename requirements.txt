@@ -3,3 +3,4 @@ opengraph @ git+https://github.com/erikriver/opengraph@master
 pillow==10.4.0
 aiohttp==3.10.3
 requests==2.32.3
+pydantic==2.8.2

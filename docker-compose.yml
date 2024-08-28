@@ -1,0 +1,9 @@
+services:
+  announceman:
+    image: announceman
+    restart: unless-stopped
+    build: .
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+    volumes:
+      - ./announceman_data:/src/announceman_data
