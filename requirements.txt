@@ -1,7 +1,23 @@
+aiofiles==23.2.1
 aiogram==3.12.0
-opengraph @ git+https://github.com/erikriver/opengraph@master
-pillow==10.4.0
+aiohappyeyeballs==2.3.6
 aiohttp==3.10.3
-requests==2.32.3
-pydantic==2.8.2
+aiosignal==1.3.1
+annotated-types==0.7.0
+attrs==24.2.0
 beautifulsoup4==4.12.3
+certifi==2024.7.4
+charset-normalizer==3.3.2
+frozenlist==1.4.1
+idna==3.7
+magic-filter==1.0.12
+multidict==6.0.5
+opengraph @ git+https://github.com/erikriver/opengraph@e2322563004c923a4c1ce136733a44efe5fc8caa
+pillow==10.4.0
+pydantic==2.8.2
+pydantic_core==2.20.1
+requests==2.32.3
+soupsieve==2.6
+typing_extensions==4.12.2
+urllib3==2.2.2
+yarl==1.9.4
