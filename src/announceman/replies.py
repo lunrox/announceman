@@ -58,7 +58,7 @@ async def ask_for_date(message: Message):
 
 
 async def show_route_list(routes: List[Route], message: Message, offset: int):
-    route_previews = [f"{route.preview_message} --> /route\_{i}" for i, route in enumerate(routes)]
+    route_previews = [f'{route.preview_message}\n{route.length} | 1000m --> /route\_{i}\n' for i, route in enumerate(routes)]
     offset = int(offset) * ROUTE_LIST_PAGE_LEN
     await message.edit_text(
         "\n".join(route_previews[offset:offset + ROUTE_LIST_PAGE_LEN]),

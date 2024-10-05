@@ -12,7 +12,7 @@ from pydantic.dataclasses import dataclass
 @dataclass
 class Route:
     name: str
-    description: str
+    length: str
     link: str
     preview_message: str
     preview_image: bytes
@@ -54,6 +54,8 @@ def get_preview_info(route_url) -> Tuple[str, str, str]:
 
 
 def load_route(route_url, route_name=None) -> Route:
+    if route_name is not None:
+        print('loading route', route_name)
     name, length, img_link = get_preview_info(route_url)
     name = route_name or name
 
@@ -64,7 +66,7 @@ def load_route(route_url, route_name=None) -> Route:
     return Route(
         name=name,
         length=length,
-        route_url=route_url,
-        preview_message=f"[{name}]({route_url}) | {length}",
+        link=route_url,
+        preview_message=f"[{name}]({route_url})",
         preview_image=add_title_to_image(response.content, f"{name} | {length}"),
     )
