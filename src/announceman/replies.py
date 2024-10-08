@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional, AsyncGenerator, List, Iterable
+from typing import Optional, AsyncGenerator, List, Iterable, Union
 
 from aiogram.enums import ParseMode
 from aiogram.types import Message, LinkPreviewOptions, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove, \
@@ -16,7 +16,7 @@ ROUTE_LIST_PAGE_LEN = 10
 
 @dataclass
 class Announcement:
-    route_preview: bytes
+    route_preview: Union[bytes, str]
     date: str
     track: str
     time: str
@@ -113,14 +113,20 @@ async def ask_for_pace(message: Message):
 
 
 async def send_announcement(announcement: Announcement, message: Message):
-    await message.reply_photo(
-        InMemoryInputFile(announcement.route_preview),
+    if isinstance(announcement.route_preview, bytes):
+        route_preview = InMemoryInputFile(announcement.route_preview)
+    else:
+        route_preview = announcement.route_preview
+
+    reply_obj = await message.reply_photo(
+        route_preview,
         f"Announcement ({announcement.date})\n\n"
         f"{announcement.track}\n"
         f"{announcement.time} at {announcement.start_point}\n"
         f"Pace: {announcement.pace}",
         reply_markup=ReplyKeyboardRemove(),
     )
+    return reply_obj.photo[0].file_id
 
 
 async def ask_for_starting_point(starting_point_names: Iterable[str], message: Message):

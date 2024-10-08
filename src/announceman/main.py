@@ -94,6 +94,7 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         form_state_name = str(form_state)
 
     if form_state_name != Form.track:
+        # state for track handled in process_track_data function due to its command nature
         stack.append((form_state_name, callback_data))
 
     if form_state_name == Form.date:
@@ -118,8 +119,9 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     elif form_state_name == Form.pace:
         data = await state.get_data()
         data['pace'] = callback_data
-        data['route_preview'] = data['route'].preview_image
-        await replies.send_announcement(replies.Announcement(**data), callback_query.message)
+        route = routes[data['route_id']]
+        data['route_preview'] = route.preview_id or route.preview_image
+        route.preview_id = await replies.send_announcement(replies.Announcement(**data), callback_query.message)
         await state.clear()
 
 
@@ -127,12 +129,13 @@ async def process_track_data(track_command, message: Message, state: FSMContext)
     if not track_command.startswith('/route_'):
         return
 
-    route = routes[int(track_command.split('_')[1])]
+    route_id = int(track_command.split('_')[1])
+    route = routes[route_id]
 
     stack = (await state.get_data()).get('stack', [])
     stack.append((str(await state.get_state()), track_command))
 
-    await state.update_data(track=route.preview_message, route=route, stack=stack)
+    await state.update_data(track=route.preview_message, route_id=route_id, stack=stack)
     await state.set_state(Form.start_point)
     await replies.ask_for_starting_point(start_points.keys(), message)
 

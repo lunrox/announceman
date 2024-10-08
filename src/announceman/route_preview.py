@@ -19,6 +19,7 @@ class Route:
     link: str
     preview_message: str
     preview_image: bytes
+    preview_id: str = None
 
 
 def add_title_to_image(image_data: bytes, text: str) -> bytes:
