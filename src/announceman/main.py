@@ -63,6 +63,16 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
     await replies.canceled(message)
 
 
+@form_router.message(Command("links"))
+@form_router.message(F.text.casefold() == "links")
+async def links_handler(message: Message, state: FSMContext) -> None:
+    await replies.send_links(
+        routes=[route.preview_message for route in routes],
+        start_points=[sp.formatted for sp in start_points.values()],
+        message=message,
+    )
+
+
 @form_router.message(Form.track)
 async def process_track(message: Message, state: FSMContext) -> None:
     await process_track_data(message.text, message, state)
@@ -148,7 +158,7 @@ def load_routes():
     else:
         with open(ROUTES_PATH, 'r') as f_route:
             route_links = json.load(f_route)
-        routes = [load_route(link, name) for name, link in route_links.items()]
+        routes = list(sorted([load_route(link, name) for name, link in route_links.items()], key=lambda r: r.name))
         with open(ROUTES_CACHE, 'wb') as f_cache:
             pickle.dump(routes, f_cache)
 
@@ -156,7 +166,10 @@ def load_routes():
 def load_starting_points():
     global start_points
     with open(START_POINTS_PATH, 'r') as f_start_points:
-        start_points = {name: StartPoint(name=name, link=link) for name, link in json.load(f_start_points).items()}
+        start_points = {
+            name: StartPoint(name=name, link=link)
+            for name, link in sorted(json.load(f_start_points).items(), key=lambda x: x[0])
+        }
 
 
 async def main():
