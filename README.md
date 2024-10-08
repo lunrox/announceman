@@ -30,7 +30,7 @@ export BOT_TOKEN="<put your token here>"
 ```
 2. Build bot image
 ```bash
-docker-compose build .
+docker-compose build
 ```
 3. Deploy bot container
 ```bash
