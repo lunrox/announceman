@@ -9,14 +9,30 @@ from pydantic.dataclasses import dataclass
 
 from announceman.route_preview import Route
 
-GO_BACK_DATA = "gobackdata"
-RESTART_DATA = "restartdata"
+GO_BACK_DATA = "go-back-data"
+RESTART_DATA = "restart-data"
 ROUTE_LIST_PAGE_LEN = 10
 KEYBOARD_RESTART = InlineKeyboardButton(text="Restart", callback_data=RESTART_DATA)
 KEYBOARD_SERVICE_LINE = [
     InlineKeyboardButton(text="Go back", callback_data=GO_BACK_DATA),
     KEYBOARD_RESTART,
 ]
+PICKER_UP_HOUR_DATA = "picker-up-hour-data"
+PICKER_DOWN_HOUR_DATA = "picker-down-hour-data"
+PICKER_UP_MINUTE_DATA = "picker-up-minute-data"
+PICKER_DOWN_MINUTE_DATA = "picker-down-minute-data"
+PICKER_SAVE_DATA = "picker-save-data"
+NO_ACTION_DATA = "no-action-data"
+
+
+def get_picker_keyboard(current_hour: int, current_minute: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='↑', callback_data=PICKER_UP_HOUR_DATA), InlineKeyboardButton(text='↑', callback_data=PICKER_UP_MINUTE_DATA)],
+        [InlineKeyboardButton(text=f'{current_hour:02}', callback_data=NO_ACTION_DATA), InlineKeyboardButton(text=f'{current_minute:02}', callback_data=NO_ACTION_DATA)],
+        [InlineKeyboardButton(text='↓', callback_data=PICKER_DOWN_HOUR_DATA), InlineKeyboardButton(text='↓', callback_data=PICKER_DOWN_MINUTE_DATA)],
+        [InlineKeyboardButton(text='Save', callback_data=PICKER_SAVE_DATA)],
+        KEYBOARD_SERVICE_LINE,
+    ])
 
 
 @dataclass
@@ -80,18 +96,10 @@ async def show_route_list(routes: List[Route], message: Message, offset: int):
     )
 
 
-async def ask_for_time(message: Message):
+async def ask_for_time(message: Message, current_hour: int, current_minute: int):
     await message.edit_text(
         "Pick a time",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text=start_time, callback_data=start_time)
-                    for start_time in ['07:00', '07:30', '08:00', '08:30', '09:00']
-                ],
-                KEYBOARD_SERVICE_LINE,
-            ],
-        ),
+        reply_markup=get_picker_keyboard(current_hour=current_hour, current_minute=current_minute),
     )
 
 

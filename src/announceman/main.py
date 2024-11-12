@@ -19,12 +19,18 @@ from aiogram.types import (
 from pydantic.dataclasses import dataclass
 
 from announceman import replies
+from announceman.replies import (
+    PICKER_SAVE_DATA, PICKER_UP_HOUR_DATA, PICKER_DOWN_HOUR_DATA, PICKER_UP_MINUTE_DATA, PICKER_DOWN_MINUTE_DATA
+)
 from announceman.route_preview import load_route
 
 TOKEN = getenv("BOT_TOKEN")
 ROUTES_PATH = "announceman_data/routes.json"
 ROUTES_CACHE = "announceman_data/.routes_loaded.pickle"
 START_POINTS_PATH = "announceman_data/starting_points.json"
+# time picker config
+DEFAULT_HOUR = 10
+DEFAULT_MINUTE = 0
 
 
 routes = []
@@ -90,7 +96,9 @@ async def command_start(message: Message, state: FSMContext) -> None:
 async def callback_query_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
     callback_data = callback_query.data
     form_state = await state.get_state()
-    stack = (await state.get_data()).get('stack', [])
+    state_data = await state.get_data()
+    stack = state_data.get('stack', [])
+    print('state_data: {0}, stack: {1}, callback_data: {2}'.format(state_data, stack, callback_data))
 
     if callback_data == replies.RESTART_DATA:
         return await command_start(callback_query.message, state)
@@ -103,18 +111,46 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     else:
         form_state_name = str(form_state)
 
-    if form_state_name != Form.track:
-        # state for track handled in process_track_data function due to its command nature
+    if form_state_name not in {Form.track, Form.time}:
         stack.append((form_state_name, callback_data))
 
     if form_state_name == Form.date:
-        await state.update_data(date=callback_data, stack=stack)
+        current_hour = state_data.get('current_hour', DEFAULT_HOUR)
+        current_minute = state_data.get('current_minute', DEFAULT_MINUTE)
+        await state.update_data(date=callback_data, stack=stack, current_hour=current_hour, current_minute=current_minute)
         await state.set_state(Form.time)
-        await replies.ask_for_time(callback_query.message)
+        await replies.ask_for_time(
+            message=callback_query.message,
+            current_hour=current_hour,
+            current_minute=current_minute,
+        )
     elif form_state_name == Form.time:
-        await state.update_data(time=callback_data, stack=stack)
-        await state.set_state(Form.track)
-        await replies.show_route_list(routes, callback_query.message, offset=0)
+        current_hour = state_data['current_hour']
+        current_minute = state_data['current_minute']
+        if callback_data == PICKER_SAVE_DATA:
+            saved_time = f'{current_hour:02}:{current_minute:02}'
+            stack.append((form_state_name, saved_time))
+            await state.update_data(time=saved_time, stack=stack)
+            await state.set_state(Form.track)
+            return await replies.show_route_list(routes, callback_query.message, offset=0)
+        elif callback_data == PICKER_UP_HOUR_DATA:
+            current_hour += 1
+            if current_hour == 24:
+                current_hour = 0
+        elif callback_data == PICKER_DOWN_HOUR_DATA:
+            current_hour -= 1
+            if current_hour < 0:
+                current_hour = 23
+        elif callback_data == PICKER_UP_MINUTE_DATA:
+            current_minute += 15
+            if current_minute == 60:
+                current_minute = 0
+        elif callback_data == PICKER_DOWN_MINUTE_DATA:
+            current_minute -= 15
+            if current_minute < 0:
+                current_minute = 45
+        await state.update_data(stack=stack, current_hour=current_hour, current_minute=current_minute)
+        await replies.ask_for_time(callback_query.message, current_hour, current_minute)
     elif form_state_name == Form.track:
         if callback_data.startswith('/route_'):
             await process_track_data(callback_data, callback_query.message, state)
@@ -127,11 +163,10 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await state.set_state(Form.pace)
         await replies.ask_for_pace(callback_query.message)
     elif form_state_name == Form.pace:
-        data = await state.get_data()
-        data['pace'] = callback_data
-        route = routes[data['route_id']]
-        data['route_preview'] = route.preview_id or route.preview_image
-        route.preview_id = await replies.send_announcement(replies.Announcement(**data), callback_query.message)
+        state_data['pace'] = callback_data
+        route = routes[state_data['route_id']]
+        state_data['route_preview'] = route.preview_id or route.preview_image
+        route.preview_id = await replies.send_announcement(replies.Announcement(**state_data), callback_query.message)
         await state.clear()
 
 
