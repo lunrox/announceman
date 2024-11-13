@@ -4,6 +4,7 @@ import logging
 import os.path
 import pickle
 import sys
+from typing import Tuple, List, Union
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -22,7 +23,7 @@ from announceman.route_preview import load_route
 
 
 routes = []
-start_points = {}
+start_points = []
 form_router = Router()
 
 
@@ -72,6 +73,11 @@ async def process_track(message: Message, state: FSMContext) -> None:
     await process_track_data(message.text, message, state)
 
 
+@form_router.message(Form.start_point)
+async def process_start_point(message: Message, state: FSMContext) -> None:
+    await process_start_point_data(message.text, message, state)
+
+
 @form_router.message()
 @form_router.message(CommandStart())
 async def command_start(message: Message, state: FSMContext) -> None:
@@ -86,7 +92,9 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     form_state = await state.get_state()
     state_data = await state.get_data()
     stack = state_data.get('stack', [])
-    print('state_data: {0}, stack: {1}, callback_data: {2}'.format(state_data, stack, callback_data))
+
+    if callback_data == config.NO_ACTION_DATA:
+        return
 
     if callback_data == config.RESTART_DATA:
         return await command_start(callback_query.message, state)
@@ -99,7 +107,7 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     else:
         form_state_name = str(form_state)
 
-    if form_state_name not in {Form.track, Form.time}:
+    if form_state_name not in {Form.track, Form.time, Form.start_point}:
         stack.append((form_state_name, callback_data))
 
     if form_state_name == Form.date:
@@ -117,10 +125,10 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         current_minute = state_data['current_minute']
         if callback_data == config.PICKER_SAVE_DATA:
             saved_time = f'{current_hour:02}:{current_minute:02}'
-            stack.append((form_state_name, saved_time))
+            stack.append((form_state_name, callback_data))
             await state.update_data(time=saved_time, stack=stack)
             await state.set_state(Form.track)
-            return await replies.show_route_list(routes, callback_query.message, offset=0)
+            return await replies.show_route_list(routes, callback_query.message, page_offset=0)
         elif callback_data == config.PICKER_UP_HOUR_DATA:
             current_hour += 1
             if current_hour == 24:
@@ -143,13 +151,9 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         if callback_data.startswith('/route_'):
             await process_track_data(callback_data, callback_query.message, state)
         else:
-            await replies.show_route_list(routes, callback_query.message, offset=callback_data)
+            await replies.show_route_list(routes, callback_query.message, page_offset=int(callback_data))
     elif form_state_name == Form.start_point:
-        sp = start_points.get(callback_data)
-        sp = sp.formatted if sp else callback_data
-        await state.update_data(start_point=sp, stack=stack)
-        await state.set_state(Form.pace)
-        await replies.ask_for_pace(callback_query.message)
+        await process_start_point_data(callback_data, callback_query.message, state)
     elif form_state_name == Form.pace:
         state_data['pace'] = callback_data
         route = routes[state_data['route_id']]
@@ -158,19 +162,40 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         await state.clear()
 
 
-async def process_track_data(track_command, message: Message, state: FSMContext) -> None:
-    if not track_command.startswith('/route_'):
-        return
+async def get_stack_updated_by_command(command: str, state: FSMContext) -> List[Tuple[str, str]]:
+    stack = (await state.get_data()).get('stack', [])
+    stack.append((str(await state.get_state()), command))
+    return stack
 
-    route_id = int(track_command.split('_')[1])
+
+def get_id_from_command(command: str, prefix: str) -> Union[int, None]:
+    if not command.startswith(prefix):
+        return None
+    return int(command.split('_')[1])
+
+
+async def process_track_data(track_command, message: Message, state: FSMContext) -> None:
+    route_id = get_id_from_command(track_command, '/route_')
+    if route_id is None:
+        return
     route = routes[route_id]
 
-    stack = (await state.get_data()).get('stack', [])
-    stack.append((str(await state.get_state()), track_command))
-
+    stack = await get_stack_updated_by_command(track_command, state)
     await state.update_data(track=route.preview_message, route_id=route_id, stack=stack)
     await state.set_state(Form.start_point)
-    await replies.ask_for_starting_point(start_points.keys(), message)
+    await replies.ask_for_starting_point(start_points, message)
+
+
+async def process_start_point_data(sp_command, message: Message, state: FSMContext) -> None:
+    sp_id = get_id_from_command(sp_command, '/sp_')
+    if sp_id is None:
+        return
+    sp = start_points[sp_id]
+
+    stack = await get_stack_updated_by_command(sp_command, state)
+    await state.update_data(start_point=sp.formatted, stack=stack)
+    await state.set_state(Form.pace)
+    await replies.ask_for_pace(message)
 
 
 def load_routes():
@@ -189,10 +214,10 @@ def load_routes():
 def load_starting_points():
     global start_points
     with open(config.START_POINTS_PATH, 'r') as f_start_points:
-        start_points = {
-            name: StartPoint(name=name, link=link)
+        start_points = [
+            StartPoint(name=name, link=link)
             for name, link in sorted(json.load(f_start_points).items(), key=lambda x: x[0])
-        }
+        ]
 
 
 async def main():

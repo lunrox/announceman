@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional, AsyncGenerator, List, Iterable, Union
+from typing import Optional, AsyncGenerator, List, Union
 
 from aiogram.enums import ParseMode
 from aiogram.types import (Message, LinkPreviewOptions, InlineKeyboardMarkup,
@@ -64,17 +64,18 @@ async def ask_for_date(message: Message):
     )
 
 
-async def show_route_list(routes: List[Route], message: Message, offset: int):
+async def show_route_list(routes: List[Route], message: Message, page_offset: int):
     route_previews = [
         f'{route.preview_message}\n{route.length} | {route.elevation} --> /route\_{i}\n'
         for i, route in enumerate(routes)
     ]
-    offset = int(offset) * config.ROUTE_LIST_PAGE_LEN
+    offset = int(page_offset) * config.ROUTE_LIST_PAGE_LEN
+
     await message.edit_text(
         "\n".join(route_previews[offset:offset + config.ROUTE_LIST_PAGE_LEN]),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [
-                InlineKeyboardButton(text=str(i), callback_data=str(i))
+                InlineKeyboardButton(text=str(i), callback_data=str(i) if i != page_offset else config.NO_ACTION_DATA)
                 for i in range(len(route_previews) // config.ROUTE_LIST_PAGE_LEN + 1)
             ],
             config.KEYBOARD_SERVICE_LINE,
@@ -90,7 +91,7 @@ async def ask_for_time(message: Message, current_hour: int, current_minute: int)
 
 
 async def ask_for_pace(message: Message):
-    await message.edit_text(
+    await message.reply(
         "Define a pace",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -122,15 +123,10 @@ async def send_announcement(announcement: Announcement, message: Message):
     return reply_obj.photo[0].file_id
 
 
-async def ask_for_starting_point(starting_point_names: Iterable[str], message: Message):
+async def ask_for_starting_point(starting_points: List["StartPoint"], message: Message):
     await message.reply(
-        "Choose a starting point",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                *[[InlineKeyboardButton(text=sp, callback_data=sp)] for sp in starting_point_names],
-                config.KEYBOARD_SERVICE_LINE,
-            ],
-        ),
+        f"Choose a starting point:\n{"\n".join(f"{sp.formatted} --> /sp\_{i}" for i, sp in enumerate(starting_points))}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[config.KEYBOARD_SERVICE_LINE]),
     )
 
 
