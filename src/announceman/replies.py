@@ -11,16 +11,6 @@ from announceman import config
 from announceman.route_preview import Route
 
 
-def get_picker_keyboard(current_hour: int, current_minute: int):
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='↑', callback_data=config.PICKER_UP_HOUR_DATA), InlineKeyboardButton(text='↑', callback_data=config.PICKER_UP_MINUTE_DATA)],
-        [InlineKeyboardButton(text=f'{current_hour:02}', callback_data=config.NO_ACTION_DATA), InlineKeyboardButton(text=f'{current_minute:02}', callback_data=config.NO_ACTION_DATA)],
-        [InlineKeyboardButton(text='↓', callback_data=config.PICKER_DOWN_HOUR_DATA), InlineKeyboardButton(text='↓', callback_data=config.PICKER_DOWN_MINUTE_DATA)],
-        [InlineKeyboardButton(text='Save', callback_data=config.PICKER_SAVE_DATA)],
-        config.KEYBOARD_SERVICE_LINE,
-    ])
-
-
 @dataclass
 class Announcement:
     route_preview: Union[bytes, str]
@@ -86,7 +76,22 @@ async def show_route_list(routes: List[Route], message: Message, page_offset: in
 async def ask_for_time(message: Message, current_hour: int, current_minute: int):
     await message.edit_text(
         "Pick a time",
-        reply_markup=get_picker_keyboard(current_hour=current_hour, current_minute=current_minute),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text='↑', callback_data=config.PICKER_UP_HOUR_DATA),
+                InlineKeyboardButton(text='↑', callback_data=config.PICKER_UP_MINUTE_DATA)
+            ],
+            [
+                InlineKeyboardButton(text=f'{current_hour:02}', callback_data=config.NO_ACTION_DATA),
+                InlineKeyboardButton(text=f'{current_minute:02}', callback_data=config.NO_ACTION_DATA)
+            ],
+            [
+                InlineKeyboardButton(text='↓', callback_data=config.PICKER_DOWN_HOUR_DATA),
+                InlineKeyboardButton(text='↓', callback_data=config.PICKER_DOWN_MINUTE_DATA)
+            ],
+            [InlineKeyboardButton(text='Save', callback_data=config.PICKER_SAVE_DATA)],
+            config.KEYBOARD_SERVICE_LINE,
+        ]),
     )
 
 

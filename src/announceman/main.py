@@ -64,7 +64,7 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
 async def links_handler(message: Message, state: FSMContext) -> None:
     await replies.send_links(
         routes=[route.preview_message for route in routes],
-        start_points=[sp.formatted for sp in start_points.values()],
+        start_points=[sp.formatted for sp in start_points],
         message=message,
     )
 
