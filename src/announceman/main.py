@@ -22,6 +22,7 @@ from announceman import replies, config
 from announceman.route_preview import load_route
 
 
+LOG = logging.getLogger(__name__)
 routes = []
 start_points = []
 form_router = Router()
@@ -157,6 +158,7 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     elif form_state_name == Form.pace:
         state_data['pace'] = callback_data
         route = routes[state_data['route_id']]
+        LOG.info(f'Announcement made: {state_data}')
         state_data['route_preview'] = route.preview_id or route.preview_image
         route.preview_id = await replies.send_announcement(replies.Announcement(**state_data), callback_query.message)
         await state.clear()
@@ -236,5 +238,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='%(asctime)s %(levelname)s %(message)s')
     asyncio.run(main())

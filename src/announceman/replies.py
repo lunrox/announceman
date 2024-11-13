@@ -36,7 +36,7 @@ class InMemoryInputFile(InputFile):
         super().__init__(filename, chunk_size)
         self.bytes = data
 
-    async def read(self, bot: "Bot") -> AsyncGenerator[bytes, None]:  # pragma: no cover
+    async def read(self, bot: "Bot") -> AsyncGenerator[bytes, None]:
         offset = 0
         while offset < len(self.bytes):
             chunk = self.bytes[offset:offset + self.chunk_size]
