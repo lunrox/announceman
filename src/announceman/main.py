@@ -62,6 +62,7 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
 @form_router.message(Command("links"))
 @form_router.message(F.text.casefold() == "links")
 async def links_handler(message: Message, state: FSMContext) -> None:
+    LOG.info("Sending links")
     await replies.send_links(
         routes=[route.preview_message for route in routes],
         start_points=[sp.formatted for sp in start_points],
