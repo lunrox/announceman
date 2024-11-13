@@ -4,7 +4,6 @@ import logging
 import os.path
 import pickle
 import sys
-from os import getenv
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -18,19 +17,8 @@ from aiogram.types import (
 )
 from pydantic.dataclasses import dataclass
 
-from announceman import replies
-from announceman.replies import (
-    PICKER_SAVE_DATA, PICKER_UP_HOUR_DATA, PICKER_DOWN_HOUR_DATA, PICKER_UP_MINUTE_DATA, PICKER_DOWN_MINUTE_DATA
-)
+from announceman import replies, config
 from announceman.route_preview import load_route
-
-TOKEN = getenv("BOT_TOKEN")
-ROUTES_PATH = "announceman_data/routes.json"
-ROUTES_CACHE = "announceman_data/.routes_loaded.pickle"
-START_POINTS_PATH = "announceman_data/starting_points.json"
-# time picker config
-DEFAULT_HOUR = 10
-DEFAULT_MINUTE = 0
 
 
 routes = []
@@ -100,9 +88,9 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     stack = state_data.get('stack', [])
     print('state_data: {0}, stack: {1}, callback_data: {2}'.format(state_data, stack, callback_data))
 
-    if callback_data == replies.RESTART_DATA:
+    if callback_data == config.RESTART_DATA:
         return await command_start(callback_query.message, state)
-    elif callback_data == replies.GO_BACK_DATA:
+    elif callback_data == config.GO_BACK_DATA:
         try:
             stack.pop()
             form_state_name, callback_data = stack.pop()
@@ -115,8 +103,8 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         stack.append((form_state_name, callback_data))
 
     if form_state_name == Form.date:
-        current_hour = state_data.get('current_hour', DEFAULT_HOUR)
-        current_minute = state_data.get('current_minute', DEFAULT_MINUTE)
+        current_hour = state_data.get('current_hour', config.DEFAULT_HOUR)
+        current_minute = state_data.get('current_minute', config.DEFAULT_MINUTE)
         await state.update_data(date=callback_data, stack=stack, current_hour=current_hour, current_minute=current_minute)
         await state.set_state(Form.time)
         await replies.ask_for_time(
@@ -127,25 +115,25 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     elif form_state_name == Form.time:
         current_hour = state_data['current_hour']
         current_minute = state_data['current_minute']
-        if callback_data == PICKER_SAVE_DATA:
+        if callback_data == config.PICKER_SAVE_DATA:
             saved_time = f'{current_hour:02}:{current_minute:02}'
             stack.append((form_state_name, saved_time))
             await state.update_data(time=saved_time, stack=stack)
             await state.set_state(Form.track)
             return await replies.show_route_list(routes, callback_query.message, offset=0)
-        elif callback_data == PICKER_UP_HOUR_DATA:
+        elif callback_data == config.PICKER_UP_HOUR_DATA:
             current_hour += 1
             if current_hour == 24:
                 current_hour = 0
-        elif callback_data == PICKER_DOWN_HOUR_DATA:
+        elif callback_data == config.PICKER_DOWN_HOUR_DATA:
             current_hour -= 1
             if current_hour < 0:
                 current_hour = 23
-        elif callback_data == PICKER_UP_MINUTE_DATA:
+        elif callback_data == config.PICKER_UP_MINUTE_DATA:
             current_minute += 15
             if current_minute == 60:
                 current_minute = 0
-        elif callback_data == PICKER_DOWN_MINUTE_DATA:
+        elif callback_data == config.PICKER_DOWN_MINUTE_DATA:
             current_minute -= 15
             if current_minute < 0:
                 current_minute = 45
@@ -187,20 +175,20 @@ async def process_track_data(track_command, message: Message, state: FSMContext)
 
 def load_routes():
     global routes
-    if os.path.exists(ROUTES_CACHE):
-        with open(ROUTES_CACHE, 'rb') as f:
+    if os.path.exists(config.ROUTES_CACHE):
+        with open(config.ROUTES_CACHE, 'rb') as f:
             routes = pickle.load(f)
     else:
-        with open(ROUTES_PATH, 'r') as f_route:
+        with open(config.ROUTES_PATH, 'r') as f_route:
             route_links = json.load(f_route)
         routes = list(sorted([load_route(link, name) for name, link in route_links.items()], key=lambda r: r.name))
-        with open(ROUTES_CACHE, 'wb') as f_cache:
+        with open(config.ROUTES_CACHE, 'wb') as f_cache:
             pickle.dump(routes, f_cache)
 
 
 def load_starting_points():
     global start_points
-    with open(START_POINTS_PATH, 'r') as f_start_points:
+    with open(config.START_POINTS_PATH, 'r') as f_start_points:
         start_points = {
             name: StartPoint(name=name, link=link)
             for name, link in sorted(json.load(f_start_points).items(), key=lambda x: x[0])
@@ -211,7 +199,7 @@ async def main():
     load_routes()
     load_starting_points()
 
-    bot = Bot(token=TOKEN, default=DefaultBotProperties(
+    bot = Bot(token=config.TOKEN, default=DefaultBotProperties(
         parse_mode=ParseMode.MARKDOWN,
         disable_notification=True,
         link_preview_is_disabled=True,

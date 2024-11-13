@@ -7,31 +7,17 @@ from aiogram.types import (Message, LinkPreviewOptions, InlineKeyboardMarkup,
 from aiogram.types.input_file import DEFAULT_CHUNK_SIZE
 from pydantic.dataclasses import dataclass
 
+from announceman import config
 from announceman.route_preview import Route
-
-GO_BACK_DATA = "go-back-data"
-RESTART_DATA = "restart-data"
-ROUTE_LIST_PAGE_LEN = 10
-KEYBOARD_RESTART = InlineKeyboardButton(text="Restart", callback_data=RESTART_DATA)
-KEYBOARD_SERVICE_LINE = [
-    InlineKeyboardButton(text="Go back", callback_data=GO_BACK_DATA),
-    KEYBOARD_RESTART,
-]
-PICKER_UP_HOUR_DATA = "picker-up-hour-data"
-PICKER_DOWN_HOUR_DATA = "picker-down-hour-data"
-PICKER_UP_MINUTE_DATA = "picker-up-minute-data"
-PICKER_DOWN_MINUTE_DATA = "picker-down-minute-data"
-PICKER_SAVE_DATA = "picker-save-data"
-NO_ACTION_DATA = "no-action-data"
 
 
 def get_picker_keyboard(current_hour: int, current_minute: int):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='↑', callback_data=PICKER_UP_HOUR_DATA), InlineKeyboardButton(text='↑', callback_data=PICKER_UP_MINUTE_DATA)],
-        [InlineKeyboardButton(text=f'{current_hour:02}', callback_data=NO_ACTION_DATA), InlineKeyboardButton(text=f'{current_minute:02}', callback_data=NO_ACTION_DATA)],
-        [InlineKeyboardButton(text='↓', callback_data=PICKER_DOWN_HOUR_DATA), InlineKeyboardButton(text='↓', callback_data=PICKER_DOWN_MINUTE_DATA)],
-        [InlineKeyboardButton(text='Save', callback_data=PICKER_SAVE_DATA)],
-        KEYBOARD_SERVICE_LINE,
+        [InlineKeyboardButton(text='↑', callback_data=config.PICKER_UP_HOUR_DATA), InlineKeyboardButton(text='↑', callback_data=config.PICKER_UP_MINUTE_DATA)],
+        [InlineKeyboardButton(text=f'{current_hour:02}', callback_data=config.NO_ACTION_DATA), InlineKeyboardButton(text=f'{current_minute:02}', callback_data=config.NO_ACTION_DATA)],
+        [InlineKeyboardButton(text='↓', callback_data=config.PICKER_DOWN_HOUR_DATA), InlineKeyboardButton(text='↓', callback_data=config.PICKER_DOWN_MINUTE_DATA)],
+        [InlineKeyboardButton(text='Save', callback_data=config.PICKER_SAVE_DATA)],
+        config.KEYBOARD_SERVICE_LINE,
     ])
 
 
@@ -70,10 +56,10 @@ async def ask_for_date(message: Message):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Tomorrow", callback_data=(datetime.now() + timedelta(days=1)).strftime("%B %d")),
-                InlineKeyboardButton(text="Today", callback_data=datetime.now().strftime("%B %d")),
+                    text="Tomorrow", callback_data=(datetime.now(tz=config.TZ) + timedelta(days=1)).strftime("%B %d")),
+                InlineKeyboardButton(text="Today", callback_data=datetime.now(tz=config.TZ).strftime("%B %d")),
             ],
-            [KEYBOARD_RESTART],
+            [config.KEYBOARD_RESTART],
         ])
     )
 
@@ -83,15 +69,15 @@ async def show_route_list(routes: List[Route], message: Message, offset: int):
         f'{route.preview_message}\n{route.length} | {route.elevation} --> /route\_{i}\n'
         for i, route in enumerate(routes)
     ]
-    offset = int(offset) * ROUTE_LIST_PAGE_LEN
+    offset = int(offset) * config.ROUTE_LIST_PAGE_LEN
     await message.edit_text(
-        "\n".join(route_previews[offset:offset + ROUTE_LIST_PAGE_LEN]),
+        "\n".join(route_previews[offset:offset + config.ROUTE_LIST_PAGE_LEN]),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text=str(i), callback_data=str(i))
-                for i in range(len(route_previews) // ROUTE_LIST_PAGE_LEN + 1)
+                for i in range(len(route_previews) // config.ROUTE_LIST_PAGE_LEN + 1)
             ],
-            KEYBOARD_SERVICE_LINE,
+            config.KEYBOARD_SERVICE_LINE,
         ])
     )
 
@@ -113,7 +99,7 @@ async def ask_for_pace(message: Message):
                     InlineKeyboardButton(text="Z2", callback_data="Z2"),
                     InlineKeyboardButton(text="FAST", callback_data="FAST"),
                 ],
-                KEYBOARD_SERVICE_LINE,
+                config.KEYBOARD_SERVICE_LINE,
             ],
         ),
     )
@@ -142,7 +128,7 @@ async def ask_for_starting_point(starting_point_names: Iterable[str], message: M
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 *[[InlineKeyboardButton(text=sp, callback_data=sp)] for sp in starting_point_names],
-                KEYBOARD_SERVICE_LINE,
+                config.KEYBOARD_SERVICE_LINE,
             ],
         ),
     )
