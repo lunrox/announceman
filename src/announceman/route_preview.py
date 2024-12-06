@@ -6,7 +6,6 @@ from urllib.request import urlopen
 import requests
 from PIL import Image, ImageDraw
 
-import opengraph
 from bs4 import BeautifulSoup
 from pydantic.dataclasses import dataclass
 
@@ -45,20 +44,27 @@ def add_title_to_image(image_data: bytes, text: str) -> bytes:
 def get_preview_info(route_url) -> Tuple[str, str, str, str]:
     html = urlopen(route_url).read()
     soup = BeautifulSoup(html, 'html.parser')
-    link_preview = opengraph.OpenGraph(html=soup)
-
     domain = urlparse(route_url).netloc
+
+    def get_meta_content(**kwargs):
+        return soup.find("meta", **kwargs)['content']
+
+    img_link = get_meta_content(property='og:image')
     if 'strava.com' in domain:
-        name, length = link_preview['description'].split(' Cycling Route. ')[0].split(' is a ')
+        name, length = get_meta_content(property='og:description').split(' Cycling Route. ')[0].split(' is a ')
         elevation = soup.find_all(**{"class":"Detail_routeStat__7yEdS"})[1].get_text()
     elif 'komoot.com' in domain:
-        name = link_preview['title'].split(' | ')[0]
-        length = link_preview['description'].split('Distance: ')[1].split(' | ')[0].replace('\xa0', '')
+        name = get_meta_content(property='og:title').split(' | ')[0]
+        length = get_meta_content(property='og:description').split('Distance: ')[1].split(' | ')[0].replace('\xa0', '')
         elevation = soup.find(**{"data-test-id": "t_elevation_up_value"}).get_text().replace('\xa0', '')
+    elif 'ridewithgps.com' in domain:
+        name = get_meta_content(property='og:title')
+        length, elevation = get_meta_content(property='og:description').split('. Bike ride in ')[0].split(', +')
+        img_link = soup.find("meta", attrs={'name': 'twitter:image'})['content']
     else:
         raise Exception('Only komoot and strava routes are supported')
 
-    return name, length, elevation, link_preview['image']
+    return name, length, elevation, img_link
 
 
 def load_route(route_url, route_name=None) -> Route:
@@ -71,11 +77,16 @@ def load_route(route_url, route_name=None) -> Route:
     if response.status_code != 200:
         raise Exception('Failed to fetch image')
 
+    if 'ridewithgps.com' in urlparse(route_url).netloc:
+        preview_image = response.content
+    else:
+        preview_image = add_title_to_image(response.content, f"{name} | {length} | {elevation}")
+
     return Route(
         name=name,
         length=length,
         elevation=elevation,
         link=route_url,
         preview_message=f"[{name}]({route_url})",
-        preview_image=add_title_to_image(response.content, f"{name} | {length} | {elevation}"),
+        preview_image=preview_image,
     )
