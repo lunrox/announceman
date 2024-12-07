@@ -209,7 +209,9 @@ def load_routes():
     else:
         with open(config.ROUTES_PATH, 'r') as f_route:
             route_links = json.load(f_route)
-        routes = list(sorted([load_route(link, name) for name, link in route_links.items()], key=lambda r: r.name))
+        with open(config.ROUTE_PREVIEWS_PATH, 'r') as f_route_previews:
+            route_pics = json.load(f_route_previews)
+        routes = list(sorted([load_route(link, name, route_pics.get(name)) for name, link in route_links.items()], key=lambda r: r.name))
         with open(config.ROUTES_CACHE, 'wb') as f_cache:
             pickle.dump(routes, f_cache)
 

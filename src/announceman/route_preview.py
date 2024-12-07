@@ -67,17 +67,18 @@ def get_preview_info(route_url) -> Tuple[str, str, str, str]:
     return name, length, elevation, img_link
 
 
-def load_route(route_url, route_name=None) -> Route:
+def load_route(route_url, route_name=None, route_pic=None) -> Route:
     if route_name is not None:
         print('loading route', route_name)
     name, length, elevation, img_link = get_preview_info(route_url)
     name = route_name or name
+    img_link = route_pic or img_link
 
     response = requests.get(img_link)
     if response.status_code != 200:
         raise Exception('Failed to fetch image')
 
-    if 'ridewithgps.com' in urlparse(route_url).netloc:
+    if 'ridewithgps.com' in urlparse(img_link).netloc:
         preview_image = response.content
     else:
         preview_image = add_title_to_image(response.content, f"{name} | {length} | {elevation}")
