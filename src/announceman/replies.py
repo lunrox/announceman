@@ -129,8 +129,17 @@ async def send_announcement(announcement: Announcement, message: Message):
 
 
 async def ask_for_starting_point(starting_points: List["StartPoint"], message: Message):
+    grouped_points = {}
+    for sp in starting_points:
+        if sp.group not in grouped_points:
+            grouped_points[sp.group] = []
+        grouped_points[sp.group].append(f"{sp.formatted} --> /sp\_{sp._id}")
+
     await message.reply(
-        f"Choose a starting point:\n{"\n".join(f"{sp.formatted} --> /sp\_{i}" for i, sp in enumerate(starting_points))}",
+        f"Choose a starting point\n\n{"\n".join(
+            f"{group}:\n{"\n".join(points)}"
+            for group, points in sorted(grouped_points.items(), key=lambda x: x[0])
+        )}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[config.KEYBOARD_SERVICE_LINE]),
     )
 

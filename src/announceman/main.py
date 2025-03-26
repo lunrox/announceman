@@ -4,7 +4,7 @@ import logging
 import os.path
 import pickle
 import sys
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Dict
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -32,6 +32,8 @@ form_router = Router()
 class StartPoint:
     name: str
     link: str
+    group: str
+    _id: int
 
     @property
     def formatted(self) -> str:
@@ -209,9 +211,7 @@ def load_routes():
     else:
         with open(config.ROUTES_PATH, 'r') as f_route:
             route_links = json.load(f_route)
-        with open(config.ROUTE_PREVIEWS_PATH, 'r') as f_route_previews:
-            route_pics = json.load(f_route_previews)
-        routes = list(sorted([load_route(link, name, route_pics.get(name)) for name, link in route_links.items()], key=lambda r: r.name))
+        routes = list(sorted([load_route(links['route_url'], name, links['preview_url']) for name, links in route_links.items()], key=lambda r: r.name))
         with open(config.ROUTES_CACHE, 'wb') as f_cache:
             pickle.dump(routes, f_cache)
 
@@ -220,8 +220,8 @@ def load_starting_points():
     global start_points
     with open(config.START_POINTS_PATH, 'r') as f_start_points:
         start_points = [
-            StartPoint(name=name, link=link)
-            for name, link in sorted(json.load(f_start_points).items(), key=lambda x: x[0])
+            StartPoint(name=name, link=sp['url'], group=sp['group'], _id=i)
+            for i, (name, sp) in enumerate(sorted(json.load(f_start_points).items(), key=lambda x: x[0]))
         ]
 
 

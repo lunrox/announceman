@@ -8,7 +8,6 @@ TZ = ZoneInfo(getenv("TZ", default="Asia/Tbilisi"))
 
 # data files and cache
 ROUTES_PATH = "announceman_data/routes.json"
-ROUTE_PREVIEWS_PATH = "announceman_data/route_previews.json"
 ROUTES_CACHE = "announceman_data/.routes_loaded.pickle"
 START_POINTS_PATH = "announceman_data/starting_points.json"
 
