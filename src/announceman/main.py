@@ -4,7 +4,8 @@ import logging
 import os.path
 import pickle
 import sys
-from typing import Tuple, List, Union, Dict
+from datetime import datetime, timedelta
+from typing import Tuple, List, Union
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -26,6 +27,12 @@ LOG = logging.getLogger(__name__)
 routes = []
 start_points = []
 form_router = Router()
+latest_posts = {}
+bot = Bot(token=config.TOKEN, default=DefaultBotProperties(
+    parse_mode=ParseMode.MARKDOWN,
+    disable_notification=True,
+    link_preview_is_disabled=True,
+))
 
 
 @dataclass
@@ -96,8 +103,12 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
     form_state = await state.get_state()
     state_data = await state.get_data()
     stack = state_data.get('stack', [])
+    LOG.info(f'handing callback_data: {callback_data} state: {form_state} stack: {stack}')
 
     if callback_data == config.NO_ACTION_DATA:
+        return
+
+    if callback_data == config.POST_TO_CHANNEL_DATA and str(form_state) != Form.announcement:
         return
 
     if callback_data == config.RESTART_DATA:
@@ -106,13 +117,15 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         try:
             stack.pop()
             form_state_name, callback_data = stack.pop()
+            await state.set_state(getattr(Form, form_state_name.split(":")[1]))
         except IndexError:
             return await command_start(callback_query.message, state)
     else:
         form_state_name = str(form_state)
 
     if form_state_name not in {Form.track, Form.time, Form.start_point}:
-        stack.append((form_state_name, callback_data))
+        if not (form_state_name == Form.announcement and callback_data == config.POST_TO_CHANNEL_DATA):
+            stack.append((form_state_name, callback_data))
 
     if form_state_name == Form.date:
         current_hour = state_data.get('current_hour', config.DEFAULT_HOUR)
@@ -163,8 +176,32 @@ async def callback_query_handler(callback_query: CallbackQuery, state: FSMContex
         route = routes[state_data['route_id']]
         LOG.info(f'Announcement made: {state_data}')
         state_data['route_preview'] = route.preview_id or route.preview_image
-        route.preview_id = await replies.send_announcement(replies.Announcement(**state_data), callback_query.message)
-        await state.clear()
+        posting_enabled = config.TARGET_CHANNEL_NAME is not None
+        state_data['user_link'] = callback_query.from_user.mention_markdown()
+        route.preview_id = await replies.send_announcement(replies.Announcement(**state_data), callback_query.message, posting_enabled)
+        state_data['route_preview'] = route.preview_id
+        state_data['stack'] = stack
+        await state.update_data(**state_data)
+        await state.set_state(Form.announcement)
+    elif form_state_name == Form.announcement and callback_data == config.POST_TO_CHANNEL_DATA:
+        if config.TARGET_CHANNEL_NAME is None:
+            return
+        prev_post, prev_post_time = latest_posts.get(callback_query.from_user.id, (None, None))
+        if prev_post_time is None or datetime.now() - prev_post_time > timedelta(seconds=int(config.MIN_TIME_BETWEEN_POSTS)):
+            announcement = replies.Announcement(**state_data)
+            if announcement == prev_post:
+                await callback_query.message.reply(f"This announcement has already been posted.")
+                return
+
+            try:
+                await replies.post_announcement(callback_query.message, bot, announcement)
+                LOG.info(f'Announcement {announcement} posted to {config.TARGET_CHANNEL_NAME}')
+                latest_posts[callback_query.from_user.id] = (announcement, datetime.now())
+            except Exception:
+                LOG.exception("Failed to post")
+                await callback_query.message.reply(f"Unable to post. Contact my master")
+        else:
+            await callback_query.message.reply(f"You can only post once every {config.MIN_TIME_BETWEEN_POSTS} seconds.")
 
 
 async def get_stack_updated_by_command(command: str, state: FSMContext) -> List[Tuple[str, str]]:
@@ -228,12 +265,6 @@ def load_starting_points():
 async def main():
     load_routes()
     load_starting_points()
-
-    bot = Bot(token=config.TOKEN, default=DefaultBotProperties(
-        parse_mode=ParseMode.MARKDOWN,
-        disable_notification=True,
-        link_preview_is_disabled=True,
-    ))
 
     dp = Dispatcher()
     dp.include_router(form_router)

@@ -28,6 +28,10 @@ ln -s ../announceman_data_tbilisi announceman_data
 ```bash
 export BOT_TOKEN="<put your token here>"
 ```
+To enable posting from the bot into a channel, also set TARGET_CHANNEL_NAME variable
+```bash
+export TARGET_CHANNEL_NAME="@<channel_name>"
+```
 2. Build bot image
 ```bash
 docker-compose build

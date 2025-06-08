@@ -1,6 +1,8 @@
+import logging
 from datetime import datetime, timedelta
-from typing import Optional, AsyncGenerator, List, Union
+from typing import Optional, AsyncGenerator, List, Union, Tuple
 
+from aiogram import Bot
 from aiogram.enums import ParseMode
 from aiogram.types import (Message, LinkPreviewOptions, InlineKeyboardMarkup,
                            InlineKeyboardButton, ReplyKeyboardRemove, InputFile)
@@ -8,7 +10,11 @@ from aiogram.types.input_file import DEFAULT_CHUNK_SIZE
 from pydantic.dataclasses import dataclass
 
 from announceman import config
+from announceman.config import POST_TO_CHANNEL_DATA
 from announceman.route_preview import Route
+
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass
@@ -19,6 +25,21 @@ class Announcement:
     time: str
     start_point: str
     pace: str
+    user_link: Union[str, None]
+
+    def get_route_preview(self) -> Union["InMemoryInputFile", str]:
+        if isinstance(self.route_preview, bytes):
+            return InMemoryInputFile(self.route_preview)
+        return self.route_preview
+
+    def get_announcement_text(self) -> str:
+        return (
+            f"Announcement ({self.date})\n\n"
+            f"{self.track}\n"
+            f"{self.time} at {self.start_point}\n"
+            f"Pace: {self.pace}\n\n"
+            f"by {self.user_link}"
+        )
 
 
 class InMemoryInputFile(InputFile):
@@ -111,19 +132,16 @@ async def ask_for_pace(message: Message):
     )
 
 
-async def send_announcement(announcement: Announcement, message: Message):
-    if isinstance(announcement.route_preview, bytes):
-        route_preview = InMemoryInputFile(announcement.route_preview)
-    else:
-        route_preview = announcement.route_preview
-
+async def send_announcement(announcement: Announcement, message: Message, posting_enabled: bool = False) -> str:
     reply_obj = await message.reply_photo(
-        route_preview,
-        f"Announcement ({announcement.date})\n\n"
-        f"{announcement.track}\n"
-        f"{announcement.time} at {announcement.start_point}\n"
-        f"Pace: {announcement.pace}",
-        reply_markup=ReplyKeyboardRemove(),
+        photo=announcement.get_route_preview(),
+        caption=announcement.get_announcement_text(),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Post", callback_data=POST_TO_CHANNEL_DATA)] + config.KEYBOARD_SERVICE_LINE
+                if posting_enabled else config.KEYBOARD_SERVICE_LINE,
+            ],
+        ),
     )
     return reply_obj.photo[0].file_id
 
@@ -148,3 +166,12 @@ async def send_links(routes: List[str], start_points: List[str], message: Messag
     await message.reply(
         "Routes:\n" + "\n".join(routes) + "\n\nStart Points:\n" + "\n".join(start_points)
     )
+
+
+async def post_announcement(message: Message, bot: Bot, announcement: Announcement):
+    await bot.send_photo(
+        chat_id=config.TARGET_CHANNEL_NAME,
+        photo=announcement.get_route_preview(),
+        caption=announcement.get_announcement_text(),
+    )
+    await message.reply(f"Posted to {config.TARGET_CHANNEL_NAME}")

@@ -25,6 +25,7 @@ PICKER_UP_MINUTE_DATA = "picker-up-minute-data"
 PICKER_DOWN_MINUTE_DATA = "picker-down-minute-data"
 PICKER_SAVE_DATA = "picker-save-data"
 NO_ACTION_DATA = "no-action-data"
+POST_TO_CHANNEL_DATA = "post-to-channel-data"
 
 # reusable keyboard buttons
 KEYBOARD_RESTART = InlineKeyboardButton(text="Restart", callback_data=RESTART_DATA)
@@ -32,3 +33,7 @@ KEYBOARD_SERVICE_LINE = [
     InlineKeyboardButton(text="Go back", callback_data=GO_BACK_DATA),
     KEYBOARD_RESTART,
 ]
+
+# channel posting
+TARGET_CHANNEL_NAME = getenv("TARGET_CHANNEL_NAME")
+MIN_TIME_BETWEEN_POSTS = getenv("MIN_TIME_BETWEEN_POSTS", 3600)
